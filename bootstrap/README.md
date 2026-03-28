@@ -20,9 +20,10 @@ Optional destructive reset (compose volumes):
 1. Prepares `.env` and generated secrets.
 2. Validates required online keys (`GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`) unless bypassed.
 3. Applies low-memory safeguards for Ollama when needed.
-4. Renders and copies MCP config for host tools.
-5. Starts services in ordered health-aware sequence.
-6. Pulls optional local Ollama models sequentially when `--with-ollama` is enabled.
+4. Renders MCP config, discovers `AI_OS/skills/*`, and appends skill MCP entries.
+5. Copies MCP config for host tools (Cline/Antigravity) and OpenClaw runtime.
+6. Starts services in ordered health-aware sequence.
+7. Pulls optional local Ollama models sequentially when `--with-ollama` is enabled.
 
 ## Canonical Compose
 

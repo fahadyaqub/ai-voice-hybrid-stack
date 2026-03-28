@@ -30,6 +30,12 @@ with minimal user actions and cross-platform defaults.
 3. Validator: `assistant-validator` (OpenAI)
 4. Optional local Ollama runtime is enabled only with `--with-ollama` (no automatic fallback chain)
 
+## Skills Architecture
+
+1. Skills live in `AI_OS/skills/<skill_name>/`.
+2. Each skill requires `tool.json` and an executable (`executor.sh` or `executor.py`).
+3. Bootstrap validates skill manifests and injects discovered skills into MCP configs.
+
 ## Audit Gate Rule
 
 Completion requires validator token:
@@ -44,8 +50,9 @@ Completion requires validator token:
 4. Applies low-memory profile values when needed.
 5. Renders MCP/registry templates into runtime config.
 6. Copies MCP config to common Cline/Antigravity paths.
-7. Starts services in health-aware order.
-8. Pulls optional local Ollama models sequentially when `--with-ollama` is enabled.
+7. Discovers skills and writes `AI_OS/config/skills_index.json`.
+8. Starts services in health-aware order.
+9. Pulls optional local Ollama models sequentially when `--with-ollama` is enabled.
 
 ## Hard Limits (Human Needed)
 

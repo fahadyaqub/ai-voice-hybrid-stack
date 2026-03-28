@@ -8,6 +8,7 @@ Portable runtime unit for the stack.
 2. `workspace/` Project slots (`project_1` ... `project_6`).
 3. `persona/` manager/engineer/validator identity specs.
 4. `config/` registry + MCP templates/runtime files.
+5. `skills/` modular tool capabilities (`tool.json` + executor).
 
 ## Canonical Compose
 

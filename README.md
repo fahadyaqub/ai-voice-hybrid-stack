@@ -9,6 +9,7 @@ This repository provisions a portable AI operations stack with:
 - n8n automation runtime
 - Redis + Postgres backing services
 - Optional Ollama local models
+- Modular MCP skills (`AI_OS/skills/*`)
 
 ## Features
 
@@ -17,16 +18,19 @@ This repository provisions a portable AI operations stack with:
 - Optional local model runtime with `--with-ollama`
 - Cross-platform target support (macOS, Linux, Windows via WSL2)
 - Works with Antigravity + Cline via shared MCP config
+- Skills discovery pipeline with starter `git_manager` skill
 
 ## Prerequisites
 
 ### Controller machine (where you run bootstrap)
 - `git`
+- `python3` (for MCP skill adapters)
 - `ssh` and `rsync` (for remote mode)
 - Docker CLI available (if using containerized fallback path)
 
 ### Target machine (where services run)
 - Docker Engine + Docker Compose
+- `python3` (for MCP skill adapters)
 - SSH access from controller machine
 - Internet access for pulling images and calling model APIs
 
@@ -103,6 +107,11 @@ REMOTE_USER=ubuntu REMOTE_BASE_DIR=/home/ubuntu/agent-stack ./bootstrap/one_clic
 
 `.env` is auto-created from `.env.example` when missing.
 
+Bootstrap also performs a repository check:
+- If current directory is not a git repo, it offers to run `git init` and set `origin`.
+- Set `AUTO_GIT_INIT=true` to auto-accept this.
+- Override remote with `REPO_URL=<git-url>`.
+
 Bootstrap also auto-generates missing secrets such as:
 - `POSTGRES_PASSWORD`
 - `LITELLM_MASTER_KEY`
@@ -114,6 +123,20 @@ To intentionally bypass online-key preflight:
 ```bash
 SKIP_ONLINE_KEY_CHECK=true ./bootstrap/one_click.sh local
 ```
+
+## Skills
+
+Skills live under `AI_OS/skills/<name>/` and use:
+1. `tool.json` (name, description, input schema)
+2. `executor.sh` or `executor.py`
+
+During bootstrap:
+1. Skills are validated.
+2. MCP entries are appended for discovered skills.
+3. `AI_OS/config/skills_index.json` is generated.
+
+Starter skill included:
+- `AI_OS/skills/git_manager` (`status`, `commit`, `pull`, `push` with branch safety defaults)
 
 ## Service Endpoints
 
@@ -139,7 +162,9 @@ Requests go through Query Router, which forwards to LiteLLM.
 
 ## Antigravity / Cline Integration
 
-Bootstrap renders and copies MCP config so Antigravity and Cline can share the same workspace context (`AI_OS/workspace/project_1..project_6`).
+Bootstrap renders and copies MCP config so Antigravity and Cline can share:
+1. Workspace context (`AI_OS/workspace/project_1..project_6`)
+2. Discovered MCP skills from `AI_OS/skills/`
 
 ## Resource Profile
 
@@ -151,7 +176,7 @@ Bootstrap renders and copies MCP config so Antigravity and Cline can share the s
 ## Security Defaults
 
 - Host-exposed ports bind to localhost
-- OpenClaw mount scope is limited to workspace/persona/config
+- OpenClaw mount scope is limited to workspace/persona/config and repo path for skill-driven git workflows
 - `.env` is ignored by git
 
 ## Repository Structure
@@ -162,6 +187,7 @@ AI_OS/
   workspace/
   persona/
   config/
+  skills/
 bootstrap/
 .env.example
 ```

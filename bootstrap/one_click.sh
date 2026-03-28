@@ -8,6 +8,8 @@ MODE="${1:-${MODE:-}}"
 REMOTE_HOST="${REMOTE_HOST:-}"
 WITH_OLLAMA="${WITH_OLLAMA:-false}"
 RESET_STATE="${RESET_STATE:-false}"
+REPO_URL="${REPO_URL:-https://github.com/fahadyaqub/ai-voice-hybrid-stack.git}"
+AUTO_GIT_INIT="${AUTO_GIT_INIT:-false}"
 
 for arg in "${@:2}"; do
   if [[ "${arg}" == "--with-ollama" ]]; then
@@ -33,6 +35,8 @@ Optional env vars:
   WITH_OLLAMA=true|false (default: false)
   RESET_STATE=true|false (default: false)
   SKIP_ONLINE_KEY_CHECK=true|false (default: false)
+  AUTO_GIT_INIT=true|false (default: false)
+  REPO_URL (default: https://github.com/fahadyaqub/ai-voice-hybrid-stack.git)
   AIOS_ROOT_REL (default: AI_OS)
   REMOTE_USER (default: current shell user)
   REMOTE_BASE_DIR (default: auto -> <remote-home>/agent-stack)
@@ -40,6 +44,46 @@ Optional env vars:
 USAGE
   exit 1
 fi
+
+ensure_repo_context() {
+  if ! command -v git >/dev/null 2>&1; then
+    echo "WARNING: git not found; skipping repository check."
+    return 0
+  fi
+
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "==> Repository check: current directory is not a git repository."
+  echo "    Skills Era workflow expects git metadata for status/commit/push handoffs."
+
+  local do_init="false"
+  if [[ "${AUTO_GIT_INIT}" == "true" ]]; then
+    do_init="true"
+  elif [[ -t 0 ]]; then
+    read -r -p "Initialize git repo and set origin to ${REPO_URL}? [y/N]: " reply
+    case "${reply}" in
+      y|Y|yes|YES) do_init="true" ;;
+    esac
+  fi
+
+  if [[ "${do_init}" != "true" ]]; then
+    echo "WARNING: continuing without git initialization."
+    echo "Run manually when ready:"
+    echo "  git init"
+    echo "  git remote add origin ${REPO_URL}"
+    return 0
+  fi
+
+  git init
+  if ! git remote get-url origin >/dev/null 2>&1; then
+    git remote add origin "${REPO_URL}"
+  fi
+  echo "==> Git repository initialized and origin configured."
+}
+
+ensure_repo_context
 
 if [[ "${MODE}" == "local" ]]; then
   export WITH_OLLAMA

@@ -1,0 +1,29 @@
+{
+  "name": "git_manager",
+  "description": "Safely perform common Git operations for the live repository.",
+  "executor": "executor.sh",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["status", "commit", "pull", "push"],
+        "description": "Git action to perform."
+      },
+      "message": {
+        "type": "string",
+        "description": "Commit message for action=commit."
+      },
+      "branch": {
+        "type": "string",
+        "description": "Branch name for pull/push."
+      },
+      "repo": {
+        "type": "string",
+        "description": "Optional repository path; defaults to repo root."
+      }
+    },
+    "required": ["action"],
+    "additionalProperties": false
+  }
+}

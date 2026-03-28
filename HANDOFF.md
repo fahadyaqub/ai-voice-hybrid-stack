@@ -34,8 +34,9 @@ CEO must not mark tasks complete until Validator returns exact `AUDIT_PASSED`.
 1. OpenClaw now starts unconditionally.
 2. `--reset-state` optional destructive reset support.
 3. `--with-ollama` enables optional local Ollama service and model pulls.
-4. MCP config render + copy to common host paths for Cline/Antigravity, with placeholder validation.
-5. Online-key preflight check (Gemini/DeepSeek/OpenAI) before startup.
+4. Skill discovery pipeline scans `AI_OS/skills/*` and validates `tool.json`.
+5. MCP config render + copy to common host paths for Cline/Antigravity and OpenClaw, with placeholder validation.
+6. Online-key preflight check (Gemini/DeepSeek/OpenAI) before startup.
 
 ## Canonical Paths
 

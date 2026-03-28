@@ -2,6 +2,8 @@
 .DS_Store
 AI_OS/config/mcp_config.json
 AI_OS/config/registry.json
+AI_OS/config/skills_index.json
+AI_OS/config/openclaw/
 
 __pycache__/
 *.pyc

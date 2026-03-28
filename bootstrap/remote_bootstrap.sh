@@ -155,9 +155,108 @@ ensure_workspace_skeleton() {
   done
 }
 
+discover_skills_and_update_mcp() {
+  local mcp_file="${AIOS_DIR}/config/mcp_config.json"
+  local skills_index_file="${AIOS_DIR}/config/skills_index.json"
+  local skills_dir="${AIOS_DIR}/skills"
+  local skill_server="${AIOS_DIR}/services/skills_hub/skill_mcp_server.py"
+
+  AIOS_DIR="${AIOS_DIR}" \
+  PROJECT_DIR="${PROJECT_DIR}" \
+  MCP_FILE="${mcp_file}" \
+  SKILLS_DIR="${skills_dir}" \
+  SKILL_SERVER="${skill_server}" \
+  SKILLS_INDEX_FILE="${skills_index_file}" \
+  python3 - <<'PY'
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+aios_dir = Path(os.environ["AIOS_DIR"]).resolve()
+project_dir = Path(os.environ["PROJECT_DIR"]).resolve()
+mcp_file = Path(os.environ["MCP_FILE"]).resolve()
+skills_dir = Path(os.environ["SKILLS_DIR"]).resolve()
+skill_server = Path(os.environ["SKILL_SERVER"]).resolve()
+skills_index_file = Path(os.environ["SKILLS_INDEX_FILE"]).resolve()
+
+if not mcp_file.exists():
+    print(f"ERROR: MCP runtime config not found at {mcp_file}", file=sys.stderr)
+    sys.exit(1)
+
+data = json.loads(mcp_file.read_text(encoding="utf-8"))
+servers = data.setdefault("mcpServers", {})
+for key in list(servers.keys()):
+    if key.startswith("ai-os-skill-"):
+        del servers[key]
+
+skills_index = []
+if skills_dir.exists():
+    if not skill_server.exists():
+        print(f"ERROR: skill MCP server not found at {skill_server}", file=sys.stderr)
+        sys.exit(1)
+
+    for skill_dir in sorted(p for p in skills_dir.iterdir() if p.is_dir()):
+        tool_file = skill_dir / "tool.json"
+        if not tool_file.exists():
+            continue
+
+        try:
+            tool = json.loads(tool_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"ERROR: invalid JSON in {tool_file}: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        for key in ("name", "description", "input_schema"):
+            if key not in tool:
+                print(f"ERROR: {tool_file} missing required key '{key}'", file=sys.stderr)
+                sys.exit(1)
+
+        if not isinstance(tool["input_schema"], dict):
+            print(f"ERROR: input_schema must be an object in {tool_file}", file=sys.stderr)
+            sys.exit(1)
+
+        executor_rel = tool.get("executor", "executor.sh")
+        executor_path = skill_dir / executor_rel
+        if not executor_path.exists():
+            print(f"ERROR: executor not found for skill '{tool['name']}': {executor_path}", file=sys.stderr)
+            sys.exit(1)
+
+        slug = re.sub(r"[^a-z0-9]+", "-", str(tool["name"]).lower()).strip("-") or "skill"
+        server_id = f"ai-os-skill-{slug}"
+        servers[server_id] = {
+            "command": "python3",
+            "args": [
+                str(skill_server),
+                "--skill-dir",
+                str(skill_dir.resolve()),
+                "--repo-root",
+                str(project_dir),
+            ],
+        }
+
+        skills_index.append(
+            {
+                "name": tool["name"],
+                "description": tool["description"],
+                "input_schema": tool["input_schema"],
+                "skill_dir": str(skill_dir.resolve()),
+                "executor": str(executor_path.resolve()),
+                "mcp_server_id": server_id,
+            }
+        )
+
+mcp_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+skills_index_file.write_text(json.dumps({"skills": skills_index}, indent=2) + "\n", encoding="utf-8")
+print(f"discovered_skills={len(skills_index)}")
+PY
+}
+
 configure_mcp_targets() {
   local mcp_file="${AIOS_DIR}/config/mcp_config.json"
   local openclaw_mcp_dir="${AIOS_DIR}/config/openclaw"
+  local openclaw_mcp_file="${openclaw_mcp_dir}/mcp_config.json"
   local -a targets=(
     "${HOME}/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
     "${HOME}/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
@@ -174,7 +273,40 @@ configure_mcp_targets() {
   )
 
   mkdir -p "${openclaw_mcp_dir}"
-  cp "${mcp_file}" "${openclaw_mcp_dir}/mcp_config.json"
+  AIOS_DIR="${AIOS_DIR}" OPENCLAW_MCP_FILE="${openclaw_mcp_file}" MCP_FILE="${mcp_file}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+aios_dir = Path(os.environ["AIOS_DIR"]).resolve()
+mcp_file = Path(os.environ["MCP_FILE"]).resolve()
+openclaw_mcp_file = Path(os.environ["OPENCLAW_MCP_FILE"]).resolve()
+
+data = json.loads(mcp_file.read_text(encoding="utf-8"))
+servers = data.get("mcpServers", {})
+
+for _name, server in servers.items():
+    args = server.get("args")
+    if not isinstance(args, list):
+        continue
+
+    for i, arg in enumerate(args):
+        if isinstance(arg, str) and arg.startswith(str(aios_dir / "workspace")):
+            rel = Path(arg).resolve().relative_to((aios_dir / "workspace").resolve())
+            args[i] = f"/workspace/{rel.as_posix()}"
+
+    if server.get("command") == "python3" and args and isinstance(args[0], str):
+        if args[0].endswith("/AI_OS/services/skills_hub/skill_mcp_server.py"):
+            args[0] = "/repo/AI_OS/services/skills_hub/skill_mcp_server.py"
+            for i, arg in enumerate(args):
+                if arg == "--skill-dir" and i + 1 < len(args):
+                    skill_name = Path(str(args[i + 1])).name
+                    args[i + 1] = f"/repo/AI_OS/skills/{skill_name}"
+                if arg == "--repo-root" and i + 1 < len(args):
+                    args[i + 1] = "/repo"
+
+openclaw_mcp_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
 
   for t in "${targets[@]}"; do
     mkdir -p "$(dirname "${t}")"
@@ -267,6 +399,25 @@ check_online_keys() {
   fi
 }
 
+install_skills_runtime_deps() {
+  local req_file="${AIOS_DIR}/services/skills_hub/requirements.txt"
+  if [[ ! -f "${req_file}" ]]; then
+    return 0
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "WARNING: python3 not found; skipping skill MCP runtime dependency install"
+    return 0
+  fi
+
+  if ! python3 -m pip --version >/dev/null 2>&1; then
+    python3 -m ensurepip --upgrade >/dev/null 2>&1 || true
+  fi
+
+  echo "[remote] Installing skill MCP runtime dependencies (best effort)"
+  python3 -m pip install --user -r "${req_file}" >/dev/null 2>&1 || true
+}
+
 start_stack_in_order() {
   if [[ "${RESET_STATE}" == "true" ]]; then
     echo "[remote] reset-state requested: removing existing compose state/volumes"
@@ -346,7 +497,9 @@ render_template "${AIOS_DIR}/config/mcp_config.template.json" "${AIOS_DIR}/confi
 render_template "${AIOS_DIR}/config/registry.template.json" "${AIOS_DIR}/config/registry.json" "${AIOS_DIR}"
 assert_no_placeholder "${AIOS_DIR}/config/mcp_config.json"
 assert_no_placeholder "${AIOS_DIR}/config/registry.json"
+discover_skills_and_update_mcp
 configure_mcp_targets
+install_skills_runtime_deps
 
 host_os="$(uname -s 2>/dev/null || echo unknown)"
 if [[ "${host_os}" == "Darwin" ]]; then

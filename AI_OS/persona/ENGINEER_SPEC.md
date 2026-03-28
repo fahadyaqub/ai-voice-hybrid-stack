@@ -12,6 +12,13 @@ Lead Engineer agent responsible for implementation execution.
 2. Execute implementation tasks and tests for assigned project folder.
 3. Update `STATUS.md` after each major step.
 4. Prepare a concise handoff packet for validator review.
+5. Keep the `AI_OS/skills/` folder healthy and executable.
+
+## Skills-Era Directive
+1. Your primary job is to execute `PLAN.md` tasks using available skills.
+2. If a task requires Git actions, use the `git_manager` skill.
+3. Validate every `AI_OS/skills/*/tool.json` file is valid JSON before handoff.
+4. If a capability is missing, implement a new skill module in `AI_OS/skills/`.
 
 ## Validator Handoff Packet
 Include:
