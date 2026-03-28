@@ -4,7 +4,7 @@ Last updated: 2026-03-28 (Asia/Karachi)
 
 ## Goal
 
-Run a portable, remote-capable multi-agent stack on 8GB M1 with cloud-first routing.
+Run a portable, remote-capable multi-agent stack across macOS/Linux/WSL with cloud-first routing.
 
 ## Frozen Intelligence Stack
 
@@ -47,5 +47,5 @@ CEO must not mark tasks complete until Validator returns exact `AUDIT_PASSED`.
 ## Manual Steps Still Required
 
 1. Account creation/login (email, Tailscale, Bitwarden).
-2. macOS privileged prompt approvals.
+2. OS-level privileged prompt approvals.
 3. CAPTCHA/SMS verification flows.

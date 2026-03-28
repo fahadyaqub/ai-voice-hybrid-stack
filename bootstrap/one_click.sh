@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_LOCAL_USER="${USER:-$(id -un 2>/dev/null || echo user)}"
 
 MODE="${1:-${MODE:-}}"
 REMOTE_HOST="${REMOTE_HOST:-}"
@@ -33,8 +34,8 @@ Optional env vars:
   RESET_STATE=true|false (default: false)
   SKIP_ONLINE_KEY_CHECK=true|false (default: false)
   AIOS_ROOT_REL (default: AI_OS)
-  REMOTE_USER (default: owner-admin)
-  REMOTE_BASE_DIR (default: /Users/<REMOTE_USER>/agent-stack)
+  REMOTE_USER (default: current shell user)
+  REMOTE_BASE_DIR (default: auto -> <remote-home>/agent-stack)
   PROJECT_NAME (default: ai-voice-hybrid-stack)
 USAGE
   exit 1
@@ -118,8 +119,8 @@ export WITH_OLLAMA
 export RESET_STATE
 export SKIP_ONLINE_KEY_CHECK="${SKIP_ONLINE_KEY_CHECK:-false}"
 export AIOS_ROOT_REL="${AIOS_ROOT_REL:-AI_OS}"
-export REMOTE_USER="${REMOTE_USER:-owner-admin}"
-export REMOTE_BASE_DIR="${REMOTE_BASE_DIR:-/Users/${REMOTE_USER}/agent-stack}"
+export REMOTE_USER="${REMOTE_USER:-${DEFAULT_LOCAL_USER}}"
+export REMOTE_BASE_DIR="${REMOTE_BASE_DIR:-}"
 export PROJECT_NAME="${PROJECT_NAME:-ai-voice-hybrid-stack}"
 
 echo "==> One-click bootstrap (remote) for ${REMOTE_USER}@${REMOTE_HOST}"

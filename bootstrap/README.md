@@ -19,7 +19,7 @@ Optional destructive reset (compose volumes):
 
 1. Prepares `.env` and generated secrets.
 2. Validates required online keys (`GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`) unless bypassed.
-3. Applies 8GB safeguards for Ollama.
+3. Applies low-memory safeguards for Ollama when needed.
 4. Renders and copies MCP config for host tools.
 5. Starts services in ordered health-aware sequence.
 6. Pulls optional local Ollama models sequentially when `--with-ollama` is enabled.

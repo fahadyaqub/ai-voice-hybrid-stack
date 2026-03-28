@@ -6,8 +6,8 @@ if [[ -z "${REMOTE_HOST:-}" ]]; then
   exit 1
 fi
 
-REMOTE_USER="${REMOTE_USER:-owner-admin}"
-REMOTE_BASE_DIR="${REMOTE_BASE_DIR:-/Users/${REMOTE_USER}/agent-stack}"
+REMOTE_USER="${REMOTE_USER:-${USER:-$(id -un 2>/dev/null || echo user)}}"
+REMOTE_BASE_DIR="${REMOTE_BASE_DIR:-}"
 PROJECT_NAME="${PROJECT_NAME:-ai-voice-hybrid-stack}"
 AIOS_ROOT_REL="${AIOS_ROOT_REL:-AI_OS}"
 WITH_OLLAMA="${WITH_OLLAMA:-false}"
@@ -29,6 +29,15 @@ fi
 echo "==> Checking SSH access to ${REMOTE_USER}@${REMOTE_HOST}"
 ssh ${SSH_OPTS} "${REMOTE_USER}@${REMOTE_HOST}" "echo 'SSH OK on' \$(hostname)"
 
+if [[ -z "${REMOTE_BASE_DIR}" ]]; then
+  REMOTE_HOME="$(ssh ${SSH_OPTS} "${REMOTE_USER}@${REMOTE_HOST}" 'printf %s "$HOME"')"
+  if [[ -z "${REMOTE_HOME}" ]]; then
+    echo "ERROR: Could not resolve remote home directory for ${REMOTE_USER}@${REMOTE_HOST}"
+    exit 1
+  fi
+  REMOTE_BASE_DIR="${REMOTE_HOME}/agent-stack"
+fi
+
 echo "==> Preparing remote directory ${REMOTE_BASE_DIR}"
 ssh ${SSH_OPTS} "${REMOTE_USER}@${REMOTE_HOST}" "mkdir -p '${REMOTE_BASE_DIR}'"
 
@@ -45,7 +54,7 @@ ssh ${SSH_OPTS} "${REMOTE_USER}@${REMOTE_HOST}" \
 set -euo pipefail
 
 REMOTE_USER="$(whoami)"
-REMOTE_BASE_DIR="${REMOTE_BASE_DIR:-/Users/${REMOTE_USER}/agent-stack}"
+REMOTE_BASE_DIR="${REMOTE_BASE_DIR:-${HOME}/agent-stack}"
 PROJECT_NAME="${PROJECT_NAME:-ai-voice-hybrid-stack}"
 AIOS_ROOT_REL="${AIOS_ROOT_REL:-AI_OS}"
 WITH_OLLAMA="${WITH_OLLAMA:-false}"
@@ -150,6 +159,12 @@ configure_mcp_targets() {
   local mcp_file="${AIOS_DIR}/config/mcp_config.json"
   local openclaw_mcp_dir="${AIOS_DIR}/config/openclaw"
   local -a targets=(
+    "${HOME}/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
+    "${HOME}/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+    "${HOME}/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
+    "${HOME}/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+    "${HOME}/.config/Antigravity/User/mcp_config.json"
+    "${HOME}/.config/Antigravity/mcp_config.json"
     "${HOME}/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
     "${HOME}/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
     "${HOME}/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
@@ -167,13 +182,34 @@ configure_mcp_targets() {
   done
 }
 
-apply_8gb_profile_if_needed() {
+detect_mem_bytes() {
+  local host_os
+  host_os="$(uname -s 2>/dev/null || echo unknown)"
+
+  if [[ "${host_os}" == "Darwin" ]]; then
+    sysctl -n hw.memsize 2>/dev/null || echo 0
+    return
+  fi
+
+  if [[ "${host_os}" == "Linux" && -r /proc/meminfo ]]; then
+    local kb
+    kb="$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+    if [[ "${kb}" =~ ^[0-9]+$ ]]; then
+      echo $((kb * 1024))
+      return
+    fi
+  fi
+
+  echo 0
+}
+
+apply_low_memory_profile_if_needed() {
   local mem_bytes
-  mem_bytes="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
+  mem_bytes="$(detect_mem_bytes)"
   local threshold=$((10 * 1024 * 1024 * 1024))
 
   if [[ "${mem_bytes}" =~ ^[0-9]+$ ]] && (( mem_bytes > 0 && mem_bytes <= threshold )); then
-    echo "==> [remote] 8GB-class memory detected; enforcing Ollama safety limits"
+    echo "==> [remote] low-memory host detected (~10GB or less); enforcing Ollama safety limits"
     set_env_value "OLLAMA_NUM_PARALLEL" "1" "${ENV_FILE}"
     set_env_value "OLLAMA_MAX_LOADED_MODELS" "1" "${ENV_FILE}"
     set_env_value "OLLAMA_KEEP_ALIVE" "0" "${ENV_FILE}"
@@ -297,7 +333,7 @@ ensure_workspace_skeleton
 
 echo "[4/10] Ensure .env and secrets"
 ensure_env_and_secrets
-apply_8gb_profile_if_needed
+apply_low_memory_profile_if_needed
 check_online_keys
 
 if [[ ! -f "${AIOS_DIR}/config/mcp_config.template.json" || ! -f "${AIOS_DIR}/config/registry.template.json" ]]; then
@@ -312,21 +348,26 @@ assert_no_placeholder "${AIOS_DIR}/config/mcp_config.json"
 assert_no_placeholder "${AIOS_DIR}/config/registry.json"
 configure_mcp_targets
 
-echo "[6/10] Install Homebrew if missing (best effort)"
-if ! command -v brew >/dev/null 2>&1; then
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
-fi
-if [[ -x /opt/homebrew/bin/brew ]]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-fi
+host_os="$(uname -s 2>/dev/null || echo unknown)"
+if [[ "${host_os}" == "Darwin" ]]; then
+  echo "[6/10] Install Homebrew if missing (best effort)"
+  if ! command -v brew >/dev/null 2>&1; then
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+  fi
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  fi
 
-echo "[7/10] Install OrbStack/Tailscale/Bitwarden (best effort)"
-if command -v brew >/dev/null 2>&1; then
-  brew install --cask orbstack tailscale bitwarden || true
-fi
+  echo "[7/10] Install OrbStack/Tailscale/Bitwarden (best effort)"
+  if command -v brew >/dev/null 2>&1; then
+    brew install --cask orbstack tailscale bitwarden || true
+  fi
 
-echo "[8/10] Start container runtime (OrbStack preferred)"
-open -a OrbStack || open -a Docker || true
+  echo "[8/10] Start container runtime (OrbStack preferred)"
+  open -a OrbStack || open -a Docker || true
+else
+  echo "[6/10] Non-macOS remote detected; skipping Homebrew/cask/GUI steps"
+fi
 
 echo "[9/10] Wait for Docker Engine"
 docker_ready=0
@@ -338,7 +379,7 @@ for _ in $(seq 1 60); do
   sleep 3
 done
 if [[ "${docker_ready}" -ne 1 ]]; then
-  echo "WARNING: Docker Engine not ready yet. Complete OrbStack (preferred) or Docker Desktop first-run in GUI, then run:"
+  echo "WARNING: Docker Engine not ready yet. Start your container runtime/daemon, then run:"
   echo "  cd ${PROJECT_DIR}"
   echo "  docker compose -f ${COMPOSE_FILE} up -d --build"
   exit 0

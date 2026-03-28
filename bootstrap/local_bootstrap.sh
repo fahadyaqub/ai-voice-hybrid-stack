@@ -113,6 +113,12 @@ configure_mcp_targets() {
   local mcp_file="${AIOS_DIR}/config/mcp_config.json"
   local openclaw_mcp_dir="${AIOS_DIR}/config/openclaw"
   local -a targets=(
+    "${HOME}/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
+    "${HOME}/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+    "${HOME}/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
+    "${HOME}/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+    "${HOME}/.config/Antigravity/User/mcp_config.json"
+    "${HOME}/.config/Antigravity/mcp_config.json"
     "${HOME}/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
     "${HOME}/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
     "${HOME}/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/mcp_config.json"
@@ -130,13 +136,34 @@ configure_mcp_targets() {
   done
 }
 
-apply_8gb_profile_if_needed() {
+detect_mem_bytes() {
+  local host_os
+  host_os="$(uname -s 2>/dev/null || echo unknown)"
+
+  if [[ "${host_os}" == "Darwin" ]]; then
+    sysctl -n hw.memsize 2>/dev/null || echo 0
+    return
+  fi
+
+  if [[ "${host_os}" == "Linux" && -r /proc/meminfo ]]; then
+    local kb
+    kb="$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+    if [[ "${kb}" =~ ^[0-9]+$ ]]; then
+      echo $((kb * 1024))
+      return
+    fi
+  fi
+
+  echo 0
+}
+
+apply_low_memory_profile_if_needed() {
   local mem_bytes
-  mem_bytes="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
+  mem_bytes="$(detect_mem_bytes)"
   local threshold=$((10 * 1024 * 1024 * 1024))
 
   if [[ "${mem_bytes}" =~ ^[0-9]+$ ]] && (( mem_bytes > 0 && mem_bytes <= threshold )); then
-    echo "==> [local] 8GB-class memory detected; enforcing Ollama safety limits"
+    echo "==> [local] low-memory host detected (~10GB or less); enforcing Ollama safety limits"
     set_env_value "OLLAMA_NUM_PARALLEL" "1" "${ENV_FILE}"
     set_env_value "OLLAMA_MAX_LOADED_MODELS" "1" "${ENV_FILE}"
     set_env_value "OLLAMA_KEEP_ALIVE" "0" "${ENV_FILE}"
@@ -259,7 +286,7 @@ fi
 
 echo "==> [local] preparing environment and secrets"
 ensure_env_and_secrets
-apply_8gb_profile_if_needed
+apply_low_memory_profile_if_needed
 check_online_keys
 
 render_template "${AIOS_DIR}/config/mcp_config.template.json" "${AIOS_DIR}/config/mcp_config.json" "${AIOS_DIR}"
@@ -268,22 +295,27 @@ assert_no_placeholder "${AIOS_DIR}/config/mcp_config.json"
 assert_no_placeholder "${AIOS_DIR}/config/registry.json"
 configure_mcp_targets
 
-echo "==> [local] installing Homebrew if missing (best effort)"
-if ! command -v brew >/dev/null 2>&1; then
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
-fi
+host_os="$(uname -s 2>/dev/null || echo unknown)"
+if [[ "${host_os}" == "Darwin" ]]; then
+  echo "==> [local] installing Homebrew if missing (best effort)"
+  if ! command -v brew >/dev/null 2>&1; then
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+  fi
 
-if [[ -x /opt/homebrew/bin/brew ]]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-fi
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  fi
 
-echo "==> [local] installing OrbStack/Tailscale/Bitwarden (best effort)"
-if command -v brew >/dev/null 2>&1; then
-  brew install --cask orbstack tailscale bitwarden || true
-fi
+  echo "==> [local] installing OrbStack/Tailscale/Bitwarden (best effort)"
+  if command -v brew >/dev/null 2>&1; then
+    brew install --cask orbstack tailscale bitwarden || true
+  fi
 
-echo "==> [local] launching container runtime (OrbStack preferred)"
-open -a OrbStack || open -a Docker || true
+  echo "==> [local] launching container runtime (OrbStack preferred)"
+  open -a OrbStack || open -a Docker || true
+else
+  echo "==> [local] non-macOS detected; skipping macOS app install/launch steps"
+fi
 
 echo "==> [local] waiting for Docker Engine"
 docker_ready=0
@@ -297,7 +329,7 @@ done
 if [[ "${docker_ready}" -ne 1 ]]; then
   cat <<MSG
 ERROR: Docker Engine is not ready.
-Open OrbStack (preferred) or Docker Desktop on this machine and complete first-run prompts.
+Start your container runtime/daemon (Docker Engine).
 Then re-run: ./bootstrap/one_click.sh local
 MSG
   exit 2

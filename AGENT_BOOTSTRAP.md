@@ -6,7 +6,7 @@ From this folder alone, an agent should set up:
 1. Local machine (`local`), or
 2. Remote machine over SSH/Tailscale (`remote`),
 
-with minimal user actions and 8GB-safe defaults.
+with minimal user actions and cross-platform defaults.
 
 ## First Questions
 
@@ -41,7 +41,7 @@ Completion requires validator token:
 1. Creates `.env` if missing.
 2. Generates missing secrets.
 3. Validates required online keys (`GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`) unless bypassed.
-4. Applies 8GB profile values.
+4. Applies low-memory profile values when needed.
 5. Renders MCP/registry templates into runtime config.
 6. Copies MCP config to common Cline/Antigravity paths.
 7. Starts services in health-aware order.
@@ -50,5 +50,5 @@ Completion requires validator token:
 ## Hard Limits (Human Needed)
 
 1. Account creation/login flows.
-2. macOS admin/security approvals.
+2. OS admin/security approvals.
 3. CAPTCHA/SMS verification.

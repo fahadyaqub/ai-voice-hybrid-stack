@@ -1,6 +1,6 @@
 # AI_OS Director Stack (Online-First)
 
-A portable multi-agent stack for a dedicated machine, optimized for low-resource hardware (like 8GB M1) by using cloud models first.
+A portable multi-agent stack for a dedicated machine, using cloud models first so it runs well across hardware sizes.
 
 ## What This Is
 
@@ -18,6 +18,12 @@ Use this when you want:
 2. Lower cost than always-running large local models.
 3. Multi-project orchestration in one setup.
 4. A repeatable install flow you can share with others.
+
+## Platform Support
+
+1. macOS: supported.
+2. Linux: supported.
+3. Windows: supported via WSL2 (recommended) with Docker running in WSL2/Desktop integration.
 
 ## Core Idea
 
@@ -108,8 +114,9 @@ REMOTE_USER=ubuntu REMOTE_BASE_DIR=/home/ubuntu/agent-stack ./bootstrap/one_clic
 ```
 
 Notes for cloud:
-1. The scripts are mac-friendly by default (`/Users/...`), so set `REMOTE_USER` and `REMOTE_BASE_DIR` for Linux.
-2. Install provider keys in `.env` on the target stack path.
+1. `REMOTE_BASE_DIR` auto-defaults to `<remote-home>/agent-stack` if not provided.
+2. Set `REMOTE_USER` explicitly when it differs from your local username.
+3. Install provider keys in `.env` on the target stack path.
 
 ## Required API Keys
 
@@ -168,9 +175,10 @@ ssh -L 5678:localhost:5678 -L 4001:localhost:4001 -L 3400:localhost:3400 <user>@
    - `max_budget: 10.0`
    - `budget_duration: 1d`
 
-Container runtime recommendation for 8GB M1:
+Container runtime recommendation:
 1. OrbStack preferred.
 2. Docker Desktop supported fallback.
+3. On low-memory hosts (for example around 8GB), keep Ollama optional and use cloud-first mode.
 
 ## Troubleshooting
 
@@ -201,4 +209,3 @@ Manual (cannot be fully automated reliably):
 2. LiteLLM config: `AI_OS/services/litellm/config.yaml`
 3. Router: `AI_OS/services/router/app.py`
 4. Bootstrap entrypoint: `bootstrap/one_click.sh`
-
