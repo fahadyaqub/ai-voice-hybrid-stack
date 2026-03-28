@@ -1,0 +1,12 @@
+{
+  "registry_version": "1.0",
+  "workspace_root": "__AI_OS_ROOT__/workspace",
+  "projects": [
+    {"id": "project_1", "path": "__AI_OS_ROOT__/workspace/project_1", "status_file": "STATUS.md", "plan_file": "PLAN.md"},
+    {"id": "project_2", "path": "__AI_OS_ROOT__/workspace/project_2", "status_file": "STATUS.md", "plan_file": "PLAN.md"},
+    {"id": "project_3", "path": "__AI_OS_ROOT__/workspace/project_3", "status_file": "STATUS.md", "plan_file": "PLAN.md"},
+    {"id": "project_4", "path": "__AI_OS_ROOT__/workspace/project_4", "status_file": "STATUS.md", "plan_file": "PLAN.md"},
+    {"id": "project_5", "path": "__AI_OS_ROOT__/workspace/project_5", "status_file": "STATUS.md", "plan_file": "PLAN.md"},
+    {"id": "project_6", "path": "__AI_OS_ROOT__/workspace/project_6", "status_file": "STATUS.md", "plan_file": "PLAN.md"}
+  ]
+}

@@ -1,0 +1,4 @@
+.env
+.DS_Store
+AI_OS/config/mcp_config.json
+AI_OS/config/registry.json

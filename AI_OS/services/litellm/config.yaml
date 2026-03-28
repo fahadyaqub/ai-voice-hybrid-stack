@@ -1,0 +1,81 @@
+model_list:
+  # CEO / manager lane: online-first Gemini
+  - model_name: assistant-manager
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+      request_timeout: 60
+
+  # Engineer lane: online-first DeepSeek
+  - model_name: assistant-engineer
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      request_timeout: 60
+
+  # Validator lane: OpenAI auditing path
+  - model_name: assistant-validator
+    litellm_params:
+      # Use a stable publicly available model id for validator lane.
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+      request_timeout: 60
+
+  # Compatibility aliases for existing clients
+  - model_name: assistant-reasoning
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      request_timeout: 60
+
+  - model_name: assistant-auto
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      request_timeout: 60
+
+  - model_name: assistant-smart
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+      request_timeout: 60
+
+router_settings:
+  num_retries: 1
+  timeout: 60
+  allowed_fails: 1
+  cooldown_time: 30
+  fallbacks:
+    - assistant-manager:
+        - assistant-engineer
+        - assistant-validator
+    - assistant-engineer:
+        - assistant-auto
+        - assistant-manager
+    - assistant-validator:
+        - assistant-manager
+    - assistant-smart:
+        - assistant-manager
+        - assistant-engineer
+    - assistant-auto:
+        - assistant-engineer
+    - assistant-reasoning:
+        - assistant-engineer
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  max_budget: 10.0
+  budget_duration: 1d
+
+litellm_settings:
+  set_verbose: false
+  request_timeout: 60
+  cache: true
+  cache_params:
+    type: redis
+    host: os.environ/REDIS_HOST
+    port: os.environ/REDIS_PORT
+    password: os.environ/REDIS_PASSWORD
+    ttl: os.environ/LITELLM_CACHE_TTL
+    namespace: ai_os_online_first

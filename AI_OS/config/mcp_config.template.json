@@ -1,0 +1,58 @@
+{
+  "mcpServers": {
+    "ai-os-project-1": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "__AI_OS_ROOT__/workspace/project_1",
+        "--read-only"
+      ]
+    },
+    "ai-os-project-2": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "__AI_OS_ROOT__/workspace/project_2",
+        "--read-only"
+      ]
+    },
+    "ai-os-project-3": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "__AI_OS_ROOT__/workspace/project_3",
+        "--read-only"
+      ]
+    },
+    "ai-os-project-4": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "__AI_OS_ROOT__/workspace/project_4",
+        "--read-only"
+      ]
+    },
+    "ai-os-project-5": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "__AI_OS_ROOT__/workspace/project_5",
+        "--read-only"
+      ]
+    },
+    "ai-os-project-6": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "__AI_OS_ROOT__/workspace/project_6",
+        "--read-only"
+      ]
+    }
+  }
+}

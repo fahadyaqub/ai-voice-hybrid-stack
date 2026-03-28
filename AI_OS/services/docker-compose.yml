@@ -1,0 +1,181 @@
+name: ai-os-director
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ai_net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "100mb", "--maxmemory-policy", "allkeys-lru"]
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ai_net
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    restart: unless-stopped
+    mem_limit: 3g
+    environment:
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-0}
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "/bin/ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks:
+      - ai_net
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    restart: unless-stopped
+    mem_limit: 1g
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      LITELLM_CACHE_TTL: ${LITELLM_CACHE_TTL:-1800}
+      STORE_MODEL_IN_DB: "True"
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    expose:
+      - "4000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=5).read()\""]
+      interval: 20s
+      timeout: 8s
+      retries: 10
+    networks:
+      - ai_net
+
+  query-router:
+    build:
+      context: ./router
+    restart: unless-stopped
+    mem_limit: 256m
+    depends_on:
+      litellm:
+        condition: service_healthy
+    environment:
+      LITELLM_BASE_URL: http://litellm:4000
+      ROUTER_SMART_ALIAS: assistant-smart
+      ROUTER_ONLINE_ALIAS: assistant-manager
+      ROUTER_REASONING_ALIAS: assistant-engineer
+      ROUTER_VALIDATOR_ALIAS: assistant-validator
+      ROUTER_DEFAULT_ALIAS: assistant-manager
+      ROUTER_RESPECT_EXPLICIT_MODELS: "true"
+      ROUTER_DEFAULT_LANGUAGE: english
+    expose:
+      - "4001"
+    ports:
+      - "127.0.0.1:4001:4001"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4001/health', timeout=5).read()\""]
+      interval: 20s
+      timeout: 8s
+      retries: 10
+    networks:
+      - ai_net
+
+  openai-edge-tts:
+    image: travisvn/openai-edge-tts:latest
+    restart: unless-stopped
+    mem_limit: 256m
+    networks:
+      - ai_net
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL}
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - ai_net
+
+  openclaw:
+    image: ${OPENCLAW_IMAGE:-ghcr.io/openclaw/openclaw:2026.2.26}
+    restart: unless-stopped
+    mem_limit: 1g
+    depends_on:
+      query-router:
+        condition: service_healthy
+      openai-edge-tts:
+        condition: service_started
+    environment:
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      OPENCLAW_OPENAI_BASE_URL: http://query-router:4001/v1
+      OPENCLAW_OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
+      OPENCLAW_TTS_BASE_URL: http://openai-edge-tts:5050/v1
+      OPENCLAW_TTS_API_KEY: not-needed
+      OPENCLAW_VOICE_ENABLED: "true"
+    ports:
+      - "127.0.0.1:3400:3400"
+    volumes:
+      - ../workspace:/workspace
+      - ../persona:/persona:ro
+      - ../config:/config:ro
+      - openclaw_data:/home/node/.openclaw
+    networks:
+      - ai_net
+
+networks:
+  ai_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:
+  n8n_data:
+  openclaw_data:
