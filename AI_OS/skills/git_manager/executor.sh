@@ -1,34 +1,65 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-action="${1:-}"
-shift || true
-
 repo_root="${AIOS_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 repo="${repo_root}"
 message=""
 branch=""
+action=""
 
-while [[ "$#" -gt 0 ]]; do
-  case "$1" in
-    --repo)
-      repo="$2"
-      shift 2
-      ;;
-    --message)
-      message="$2"
-      shift 2
-      ;;
-    --branch)
-      branch="$2"
-      shift 2
-      ;;
-    *)
-      echo "ERROR: Unknown argument '$1'" >&2
-      exit 2
-      ;;
-  esac
-done
+if [[ -n "${AIOS_SKILL_INPUT_JSON:-}" ]]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "ERROR: python3 is required to parse AIOS_SKILL_INPUT_JSON" >&2
+    exit 2
+  fi
+
+  mapfile -t parsed < <(AIOS_SKILL_INPUT_JSON="${AIOS_SKILL_INPUT_JSON}" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ.get("AIOS_SKILL_INPUT_JSON", "{}"))
+print(payload.get("action", ""))
+print(payload.get("message", ""))
+print(payload.get("branch", ""))
+print(payload.get("repo", ""))
+PY
+)
+  action="${parsed[0]:-}"
+  message="${parsed[1]:-}"
+  branch="${parsed[2]:-}"
+  repo="${parsed[3]:-${repo_root}}"
+else
+  action="${1:-}"
+  shift || true
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --repo)
+        repo="$2"
+        shift 2
+        ;;
+      --message)
+        message="$2"
+        shift 2
+        ;;
+      --branch)
+        branch="$2"
+        shift 2
+        ;;
+      *)
+        echo "ERROR: Unknown argument '$1'" >&2
+        exit 2
+        ;;
+    esac
+  done
+fi
+
+repo_real="$(cd "${repo}" 2>/dev/null && pwd || true)"
+root_real="$(cd "${repo_root}" 2>/dev/null && pwd || true)"
+if [[ -z "${repo_real}" || -z "${root_real}" || ( "${repo_real}" != "${root_real}" && "${repo_real}" != "${root_real}/"* ) ]]; then
+  echo "ERROR: repo path must stay inside AIOS_REPO_ROOT (${repo_root})" >&2
+  exit 2
+fi
 
 if [[ -z "${action}" ]]; then
   echo "ERROR: action is required (status|commit|pull|push)" >&2
@@ -63,7 +94,7 @@ case "${action}" in
       exit 0
     fi
 
-    git -C "${repo}" add -A
+    git -C "${repo}" add -u
     git -C "${repo}" commit -m "${message}"
     ;;
 

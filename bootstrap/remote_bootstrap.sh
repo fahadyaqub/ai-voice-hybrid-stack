@@ -188,7 +188,7 @@ if not mcp_file.exists():
 data = json.loads(mcp_file.read_text(encoding="utf-8"))
 servers = data.setdefault("mcpServers", {})
 for key in list(servers.keys()):
-    if key.startswith("ai-os-skill-"):
+    if key.startswith("ai-os-skill-") or key == "ai-os-skills":
         del servers[key]
 
 skills_index = []
@@ -223,18 +223,8 @@ if skills_dir.exists():
             print(f"ERROR: executor not found for skill '{tool['name']}': {executor_path}", file=sys.stderr)
             sys.exit(1)
 
-        slug = re.sub(r"[^a-z0-9]+", "-", str(tool["name"]).lower()).strip("-") or "skill"
-        server_id = f"ai-os-skill-{slug}"
-        servers[server_id] = {
-            "command": "python3",
-            "args": [
-                str(skill_server),
-                "--skill-dir",
-                str(skill_dir.resolve()),
-                "--repo-root",
-                str(project_dir),
-            ],
-        }
+        slug = re.sub(r"[^a-z0-9]+", "_", str(tool["name"]).lower()).strip("_") or "skill"
+        tool_mcp_name = f"skill_{slug}"
 
         skills_index.append(
             {
@@ -243,9 +233,22 @@ if skills_dir.exists():
                 "input_schema": tool["input_schema"],
                 "skill_dir": str(skill_dir.resolve()),
                 "executor": str(executor_path.resolve()),
-                "mcp_server_id": server_id,
+                "mcp_server_id": "ai-os-skills",
+                "mcp_tool_name": tool_mcp_name,
             }
         )
+
+if skills_index:
+    servers["ai-os-skills"] = {
+        "command": "python3",
+        "args": [
+            str(skill_server),
+            "--skills-dir",
+            str(skills_dir.resolve()),
+            "--repo-root",
+            str(project_dir),
+        ],
+    }
 
 mcp_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 skills_index_file.write_text(json.dumps({"skills": skills_index}, indent=2) + "\n", encoding="utf-8")
@@ -299,9 +302,8 @@ for _name, server in servers.items():
         if args[0].endswith("/AI_OS/services/skills_hub/skill_mcp_server.py"):
             args[0] = "/repo/AI_OS/services/skills_hub/skill_mcp_server.py"
             for i, arg in enumerate(args):
-                if arg == "--skill-dir" and i + 1 < len(args):
-                    skill_name = Path(str(args[i + 1])).name
-                    args[i + 1] = f"/repo/AI_OS/skills/{skill_name}"
+                if arg == "--skills-dir" and i + 1 < len(args):
+                    args[i + 1] = "/repo/AI_OS/skills"
                 if arg == "--repo-root" and i + 1 < len(args):
                     args[i + 1] = "/repo"
 

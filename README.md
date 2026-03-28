@@ -176,7 +176,7 @@ Bootstrap renders and copies MCP config so Antigravity and Cline can share:
 ## Security Defaults
 
 - Host-exposed ports bind to localhost
-- OpenClaw mount scope is limited to workspace/persona/config and repo path for skill-driven git workflows
+- OpenClaw mount scope is limited to workspace/persona/config, plus read-only repo path for skill-driven workflows
 - `.env` is ignored by git
 
 ## Repository Structure

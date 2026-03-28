@@ -168,7 +168,7 @@ services:
       - ./AI_OS/workspace:/workspace
       - ./AI_OS/persona:/persona:ro
       - ./AI_OS/config:/config:ro
-      - ./:/repo
+      - ./:/repo:ro
       - openclaw_data:/home/node/.openclaw
     networks:
       - ai_net
