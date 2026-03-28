@@ -1,101 +1,204 @@
 # AI_OS Director Stack (Online-First)
 
-This package provides a portable `AI_OS` stack optimized for 8GB M1 hardware by using cloud models first.
+A portable multi-agent stack for a dedicated machine, optimized for low-resource hardware (like 8GB M1) by using cloud models first.
 
-## Modes
+## What This Is
 
-1. `local`: run on the same machine.
-2. `remote`: run on another machine over SSH/Tailscale.
+`ai-voice-hybrid-stack` gives you a ready-to-run "AI operating environment" where:
+1. A manager lane handles planning/context.
+2. An engineer lane handles implementation.
+3. A validator lane reviews and gates completion.
+4. A shared 6-project workspace keeps work organized.
+5. Antigravity + Cline act as the operator control plane.
 
-## Core Architecture
+## What It Is For
 
-1. `AI_OS/services`: LiteLLM, Query Router, n8n, Redis cache, Postgres, TTS, OpenClaw, and optional Ollama runtime.
-2. `AI_OS/workspace`: shared room with `project_1` to `project_6`.
-3. `AI_OS/persona`: `CEO_SOUL.md`, `ENGINEER_SPEC.md`, `VALIDATOR_SPEC.md`.
-4. `AI_OS/config`: registry + MCP templates/runtime files.
+Use this when you want:
+1. A separate machine for agentic workflows (local or remote).
+2. Lower cost than always-running large local models.
+3. Multi-project orchestration in one setup.
+4. A repeatable install flow you can share with others.
+
+## Core Idea
+
+Online-first routing:
+1. Use cloud models for primary lanes (Gemini/DeepSeek/OpenAI).
+2. Keep local models optional (`--with-ollama`) for constrained hardware.
+3. Route requests through one internal API (`query-router`) so tools/agents use a single endpoint.
+
+## Architecture
+
+1. `AI_OS/services`: Docker services (LiteLLM, router, n8n, OpenClaw, Redis, Postgres, TTS, optional Ollama).
+2. `AI_OS/workspace`: `project_1` to `project_6`.
+3. `AI_OS/persona`: agent role contracts (`CEO_SOUL.md`, `ENGINEER_SPEC.md`, `VALIDATOR_SPEC.md`).
+4. `AI_OS/config`: registry + MCP templates/runtime configs.
+
+Intelligence lanes:
+1. `assistant-manager` -> Gemini
+2. `assistant-engineer` -> DeepSeek
+3. `assistant-validator` -> OpenAI
 
 ## Control Plane (Important)
 
-1. This stack is designed to be operated with `Antigravity + Cline` for multi-agent workflows.
-2. `Antigravity/Cline` are host-level tools (not Docker services in this repo), but they are part of the full solution.
-3. Bootstrap renders and copies `AI_OS/config/mcp_config.json` to common Cline/Antigravity locations so agents can share the same `AI_OS/workspace`.
-4. For memory planning on 8GB hardware, include host-side `Antigravity/Cline` RAM usage in addition to Docker container usage.
+`Antigravity + Cline` are part of the full solution.
+1. They are host apps, not Docker services in this repo.
+2. Bootstrap copies MCP config to common Antigravity/Cline locations.
+3. Include Antigravity/Cline RAM usage in memory planning.
 
-## Intelligence Lanes
+## Install Options (Smoothness)
 
-1. `assistant-manager` -> Gemini (planning/context)
-2. `assistant-engineer` -> DeepSeek (implementation)
-3. `assistant-validator` -> OpenAI (audit)
-4. Optional local model runtime only when started with `--with-ollama` (no automatic fallback chain)
+1. `GitHub (Recommended)`: easiest to share and maintain.
+2. `Tailscale + SSH (Recommended for your remote-control workflow)`: best for taking over setup remotely.
+3. `USB copy`: works offline, but least maintainable.
 
-## One Command
+Best practical pattern is GitHub + Tailscale + remote bootstrap.
 
-Local:
+## Quick Start: Local Machine
+
 ```bash
+git clone https://github.com/fahadyaqub/ai-voice-hybrid-stack.git
+cd ai-voice-hybrid-stack
 ./bootstrap/one_click.sh local
 ```
 
-Remote:
-```bash
-./bootstrap/one_click.sh remote <remote-host>
-```
-
-Remote + optional Ollama runtime:
-```bash
-./bootstrap/one_click.sh remote <remote-host> --with-ollama
-```
-
-Local + optional Ollama runtime:
+Optional local model runtime:
 ```bash
 ./bootstrap/one_click.sh local --with-ollama
 ```
 
-Optional clean state reset (destructive to compose volumes):
+Optional destructive reset:
 ```bash
 ./bootstrap/one_click.sh local --reset-state
 ```
 
-Online-first preflight requires these keys in `.env`:
+## Quick Start: Remote Mac (Over Tailscale/SSH)
+
+On the remote Mac (manual minimum):
+1. Install Tailscale.
+2. Sign in to Tailscale.
+3. Ensure SSH is available.
+
+From your controller machine:
+```bash
+git clone https://github.com/fahadyaqub/ai-voice-hybrid-stack.git
+cd ai-voice-hybrid-stack
+REMOTE_USER=agent-runner ./bootstrap/one_click.sh remote <remote-host-or-tailnet-name>
+```
+
+Optional local model runtime on remote:
+```bash
+REMOTE_USER=agent-runner ./bootstrap/one_click.sh remote <remote-host-or-tailnet-name> --with-ollama
+```
+
+## Quick Start: Remote Cloud VM (Google Cloud, etc.)
+
+Yes, this can run on remote cloud machines too.
+
+Recommended for Linux VMs:
+1. Create VM.
+2. Install Docker + Docker Compose on the VM.
+3. Enable SSH access.
+4. Run remote bootstrap from your controller with Linux paths/users.
+
+Example:
+```bash
+git clone https://github.com/fahadyaqub/ai-voice-hybrid-stack.git
+cd ai-voice-hybrid-stack
+REMOTE_USER=ubuntu REMOTE_BASE_DIR=/home/ubuntu/agent-stack ./bootstrap/one_click.sh remote <vm-ip-or-dns>
+```
+
+Notes for cloud:
+1. The scripts are mac-friendly by default (`/Users/...`), so set `REMOTE_USER` and `REMOTE_BASE_DIR` for Linux.
+2. Install provider keys in `.env` on the target stack path.
+
+## Required API Keys
+
+Set these in `.env`:
 1. `GEMINI_API_KEY`
 2. `DEEPSEEK_API_KEY`
 3. `OPENAI_API_KEY`
 
-To bypass key check intentionally:
+If missing, bootstrap blocks startup by default (online-first protection).
+
+Intentional bypass:
 ```bash
 SKIP_ONLINE_KEY_CHECK=true ./bootstrap/one_click.sh local
 ```
 
-Without `--with-ollama`, the stack is fully online-only (no local model path).
+## Runtime Flags
 
-## 8GB Safety Defaults
+1. `--with-ollama`: starts optional Ollama runtime and pulls configured local models.
+2. `--reset-state`: removes compose state/volumes before startup (destructive).
 
-1. `OLLAMA_NUM_PARALLEL=1` (applied when `--with-ollama` is used)
-2. `OLLAMA_MAX_LOADED_MODELS=1` (applied when `--with-ollama` is used)
-3. `OLLAMA_KEEP_ALIVE=0` (applied when `--with-ollama` is used)
-4. Redis bounded cache (`100mb`, `allkeys-lru`)
-5. `litellm` and `n8n` set to `mem_limit: 1g`
+Without `--with-ollama`, stack is fully online-only.
 
-## Container Runtime Choice (8GB M1)
-
-1. `OrbStack` is the recommended default for 8GB M1 (lower overhead and faster startup).
-2. `Docker Desktop` still works as a fallback.
-3. Compose flow is unchanged in either runtime; bootstrap now tries `OrbStack` first, then `Docker Desktop`.
-
-## Service Endpoints
+## Default Endpoints
 
 1. n8n: `http://localhost:5678`
 2. Query Router API: `http://localhost:4001/v1`
 3. OpenClaw: `http://localhost:3400`
 
-## Security Defaults
+Ports are bound to localhost by default. For remote access, use SSH tunnels.
 
-1. Host ports bound to localhost.
-2. OpenClaw mounts only `AI_OS/workspace`, `AI_OS/persona`, `AI_OS/config`.
-3. No automatic mount of host personal folders/credentials into runtime containers.
-4. Secrets generated into `.env` when missing.
+Example tunnel:
+```bash
+ssh -L 5678:localhost:5678 -L 4001:localhost:4001 -L 3400:localhost:3400 <user>@<host>
+```
 
-## Manual Steps (cannot be fully automated)
+## Day-to-Day Usage Flow
 
-1. Email/Tailscale/Bitwarden account creation/sign-in.
-2. macOS privileged approval prompts.
-3. CAPTCHA/SMS verification flows.
+1. Open Antigravity/Cline.
+2. Point tools/agents to Query Router endpoint (`/v1`).
+3. Work inside `AI_OS/workspace/project_1..project_6`.
+4. Use validator lane and only mark complete on `AUDIT_PASSED`.
+
+## Security Model
+
+1. Localhost-only service bindings.
+2. OpenClaw mounts limited to `workspace`, `persona`, `config`.
+3. `.env` is not committed by default.
+4. Runtime config templates are rendered locally during bootstrap.
+
+## Memory and Cost Defaults
+
+1. Cloud-first lanes reduce local RAM pressure.
+2. Redis cache bounded to `100mb` with LRU.
+3. Service limits applied (including router/TTS caps).
+4. LiteLLM budget guardrails enabled:
+   - `max_budget: 10.0`
+   - `budget_duration: 1d`
+
+Container runtime recommendation for 8GB M1:
+1. OrbStack preferred.
+2. Docker Desktop supported fallback.
+
+## Troubleshooting
+
+1. `docker: command not found`:
+   - install/start OrbStack or Docker Desktop.
+2. Remote bootstrap cannot SSH:
+   - verify Tailscale/SSH, user, and host.
+3. Startup blocked on key check:
+   - set required API keys in `.env`.
+4. UI not reachable:
+   - check SSH tunnel and `docker compose ps` on target.
+
+## What Is Automated vs Manual
+
+Automated:
+1. `.env` creation and secret generation (when missing).
+2. Config rendering and MCP file copy.
+3. Ordered service startup.
+
+Manual (cannot be fully automated reliably):
+1. Account logins (email/Tailscale/provider portals).
+2. OS security dialogs and admin approvals.
+3. CAPTCHA/SMS verification steps.
+
+## Canonical Files
+
+1. Compose: `AI_OS/services/docker-compose.yml`
+2. LiteLLM config: `AI_OS/services/litellm/config.yaml`
+3. Router: `AI_OS/services/router/app.py`
+4. Bootstrap entrypoint: `bootstrap/one_click.sh`
+
